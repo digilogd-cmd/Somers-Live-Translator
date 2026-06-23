@@ -25,11 +25,17 @@ export function useGeminiLive() {
   const [isConnected, setIsConnected] = useState(false);
   const [subtitles, setSubtitles] = useState([]);
   
+  // Capture refs (16kHz)
   const audioContextRef = useRef(null);
+  const captureWorkletRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const gainNodeRef = useRef(null);
   const filterNodeRef = useRef(null);
-  const processorRef = useRef(null);
+  
+  // Playback refs (24kHz)
+  const playbackContextRef = useRef(null);
+  const playbackWorkletRef = useRef(null);
+
   const wsRef = useRef(null);
   const setupCompleteRef = useRef(false);
 
@@ -43,7 +49,63 @@ export function useGeminiLive() {
 
       setSubtitles(prev => [...prev, "SYSTEM ACTIVATING... ESTABLISHING SECURE LINK."]);
 
-      // 1. WebSocket Setup
+      // 1. Playback AudioContext Setup (24kHz for output)
+      const playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      playbackContextRef.current = playbackCtx;
+      await playbackCtx.audioWorklet.addModule("/audio-processors/playback.worklet.js");
+      const playbackWorklet = new AudioWorkletNode(playbackCtx, "pcm-processor");
+      playbackWorkletRef.current = playbackWorklet;
+      playbackWorklet.connect(playbackCtx.destination);
+
+      // 2. Capture AudioContext Setup (16kHz for input)
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      mediaStreamRef.current = stream;
+
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      audioContextRef.current = audioCtx;
+      await audioCtx.audioWorklet.addModule("/audio-processors/capture.worklet.js");
+      
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // Filter
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.value = 300; 
+      filterNodeRef.current = filter;
+
+      // Gain
+      const gainNode = audioCtx.createGain();
+      gainNode.gain.value = boostLevel;
+      gainNodeRef.current = gainNode;
+
+      const captureWorklet = new AudioWorkletNode(audioCtx, "audio-capture-processor");
+      captureWorkletRef.current = captureWorklet;
+
+      source.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(captureWorklet);
+
+      captureWorklet.port.onmessage = (event) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN && setupCompleteRef.current) {
+          if (event.data.type === "audio") {
+            const inputData = event.data.data; // Float32Array from worklet
+            const pcmData = floatTo16BitPCM(inputData);
+            const base64Data = arrayBufferToBase64(pcmData);
+
+            const mediaMessage = {
+              realtimeInput: {
+                mediaChunks: [{
+                  mimeType: "audio/pcm;rate=16000",
+                  data: base64Data
+                }]
+              }
+            };
+            wsRef.current.send(JSON.stringify(mediaMessage));
+          }
+        }
+      };
+
+      // 3. WebSocket Setup
       const wsUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${apiKey}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -78,12 +140,18 @@ export function useGeminiLive() {
 
       ws.onmessage = async (event) => {
         try {
-          // The API returns Blob (or JSON directly if not Blob, depending on env)
           let textData = event.data;
           if (event.data instanceof Blob) {
             textData = await event.data.text();
           }
           const response = JSON.parse(textData);
+
+          // If the user interrupted, clear the playback buffer
+          if (response.serverContent?.interrupted) {
+            if (playbackWorkletRef.current) {
+              playbackWorkletRef.current.port.postMessage("interrupt");
+            }
+          }
 
           if (response.setupComplete) {
             setupCompleteRef.current = true;
@@ -112,22 +180,29 @@ export function useGeminiLive() {
                 }
                 // Handle Audio Response (Gemini's translated voice)
                 if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
-                const base64Audio = part.inlineData.data;
-                const binaryString = atob(base64Audio);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                  bytes[i] = binaryString.charCodeAt(i);
-                }
-                
-                // Play audio
-                if (audioContextRef.current) {
-                  audioContextRef.current.decodeAudioData(bytes.buffer, (buffer) => {
-                    const source = audioContextRef.current.createBufferSource();
-                    source.buffer = buffer;
-                    source.connect(audioContextRef.current.destination);
-                    source.start(0);
-                  }, (e) => console.error("Error decoding audio", e));
+                  const base64Audio = part.inlineData.data;
+                  const binaryString = atob(base64Audio);
+                  const len = binaryString.length;
+                  const bytes = new Uint8Array(len);
+                  for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                  }
+                  
+                  // Convert PCM16 LE to Float32
+                  const inputArray = new Int16Array(bytes.buffer);
+                  const float32Data = new Float32Array(inputArray.length);
+                  for (let i = 0; i < inputArray.length; i++) {
+                    float32Data[i] = inputArray[i] / 32768;
+                  }
+
+                  if (playbackContextRef.current?.state === "suspended") {
+                    playbackContextRef.current.resume();
+                  }
+
+                  if (playbackWorkletRef.current) {
+                    // Send directly to the playback worklet queue
+                    playbackWorkletRef.current.port.postMessage(float32Data);
+                  }
                 }
               }
             }
@@ -146,55 +221,6 @@ export function useGeminiLive() {
         setSubtitles(prev => [...prev, `WS ERROR OCCURRED.`]);
       };
 
-      // 2. Audio Capture Setup
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)({
-        sampleRate: 16000 // Gemini requires 16kHz
-      });
-      audioContextRef.current = audioCtx;
-
-      const source = audioCtx.createMediaStreamSource(stream);
-
-      // Filter
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = 'highpass';
-      filter.frequency.value = 300; 
-      filterNodeRef.current = filter;
-
-      // Gain
-      const gainNode = audioCtx.createGain();
-      gainNode.gain.value = boostLevel;
-      gainNodeRef.current = gainNode;
-
-      // Processor
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-
-      source.connect(filter);
-      filter.connect(gainNode);
-      gainNode.connect(processor);
-      processor.connect(audioCtx.destination); 
-
-      processor.onaudioprocess = (e) => {
-        if (ws.readyState === WebSocket.OPEN && setupCompleteRef.current) {
-          const inputData = e.inputBuffer.getChannelData(0);
-          const pcmData = floatTo16BitPCM(inputData);
-          const base64Data = arrayBufferToBase64(pcmData);
-
-          const mediaMessage = {
-            realtimeInput: {
-              mediaChunks: [{
-                mimeType: "audio/pcm;rate=16000",
-                data: base64Data
-              }]
-            }
-          };
-          ws.send(JSON.stringify(mediaMessage));
-        }
-      };
-
     } catch (err) {
       console.error("Audio/WS Setup Error:", err);
       setSubtitles(prev => [...prev, "CRITICAL ERROR: " + (err.message || "INITIALIZATION FAILED")]);
@@ -203,9 +229,11 @@ export function useGeminiLive() {
   }, []);
 
   const stopListening = useCallback(() => {
-    if (processorRef.current) processorRef.current.disconnect();
+    if (captureWorkletRef.current) captureWorkletRef.current.disconnect();
+    if (playbackWorkletRef.current) playbackWorkletRef.current.disconnect();
     if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(track => track.stop());
     if (audioContextRef.current) audioContextRef.current.close();
+    if (playbackContextRef.current) playbackContextRef.current.close();
     if (wsRef.current) wsRef.current.close();
     
     setupCompleteRef.current = false;
