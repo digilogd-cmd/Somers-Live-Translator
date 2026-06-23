@@ -49,10 +49,13 @@ export function useGeminiLive() {
 
       setSubtitles(prev => [...prev, "SYSTEM ACTIVATING... ESTABLISHING SECURE LINK."]);
 
+      // Resolve path for GitHub pages vs Local dev
+      const basePath = process.env.NODE_ENV === 'production' ? '/Somers-Live-Translator' : '';
+
       // 1. Playback AudioContext Setup (24kHz for output)
       const playbackCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
       playbackContextRef.current = playbackCtx;
-      await playbackCtx.audioWorklet.addModule("/audio-processors/playback.worklet.js");
+      await playbackCtx.audioWorklet.addModule(`${basePath}/audio-processors/playback.worklet.js`);
       const playbackWorklet = new AudioWorkletNode(playbackCtx, "pcm-processor");
       playbackWorkletRef.current = playbackWorklet;
       playbackWorklet.connect(playbackCtx.destination);
@@ -63,7 +66,7 @@ export function useGeminiLive() {
 
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
       audioContextRef.current = audioCtx;
-      await audioCtx.audioWorklet.addModule("/audio-processors/capture.worklet.js");
+      await audioCtx.audioWorklet.addModule(`${basePath}/audio-processors/capture.worklet.js`);
       
       const source = audioCtx.createMediaStreamSource(stream);
 
