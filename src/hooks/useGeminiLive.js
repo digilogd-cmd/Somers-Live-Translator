@@ -130,9 +130,13 @@ export function useGeminiLive() {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setIsConnected(false);
-        setSubtitles(prev => [...prev, "SECURE LINK TERMINATED."]);
+        setSubtitles(prev => [...prev, `SECURE LINK TERMINATED. (${event.code}: ${event.reason || 'No Reason'})`]);
+      };
+      
+      ws.onerror = (event) => {
+        setSubtitles(prev => [...prev, `WS ERROR OCCURRED.`]);
       };
 
       // 2. Audio Capture Setup
