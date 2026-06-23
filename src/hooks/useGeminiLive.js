@@ -31,6 +31,7 @@ export function useGeminiLive() {
   const filterNodeRef = useRef(null);
   const processorRef = useRef(null);
   const wsRef = useRef(null);
+  const setupCompleteRef = useRef(false);
 
   const startListening = useCallback(async (boostLevel, targetLanguage) => {
     try {
@@ -62,7 +63,7 @@ export function useGeminiLive() {
               parts: [{ text: instruction }]
             },
             generationConfig: {
-              responseModalities: ["TEXT", "AUDIO"],
+              responseModalities: ["AUDIO"],
               speechConfig: {
                 voiceConfig: {
                   prebuiltVoiceConfig: {
@@ -74,12 +75,6 @@ export function useGeminiLive() {
           }
         };
         ws.send(JSON.stringify(setupMessage));
-        
-        // Let user know we are ready
-        setTimeout(() => {
-          setSubtitles(prev => [...prev, "SOMMERS ACTIVE. INTERCEPTING AUDIO..."]);
-          setIsConnected(true);
-        }, 500);
       };
 
       ws.onmessage = async (event) => {
@@ -90,6 +85,13 @@ export function useGeminiLive() {
             textData = await event.data.text();
           }
           const response = JSON.parse(textData);
+
+          if (response.setupComplete) {
+            setupCompleteRef.current = true;
+            setSubtitles(prev => [...prev, "SOMMERS ACTIVE. INTERCEPTING AUDIO..."]);
+            setIsConnected(true);
+            return;
+          }
 
           if (response.serverContent?.modelTurn?.parts) {
             const parts = response.serverContent.modelTurn.parts;
@@ -165,7 +167,7 @@ export function useGeminiLive() {
       processor.connect(audioCtx.destination); 
 
       processor.onaudioprocess = (e) => {
-        if (ws.readyState === WebSocket.OPEN) {
+        if (ws.readyState === WebSocket.OPEN && setupCompleteRef.current) {
           const inputData = e.inputBuffer.getChannelData(0);
           const pcmData = floatTo16BitPCM(inputData);
           const base64Data = arrayBufferToBase64(pcmData);
@@ -195,6 +197,7 @@ export function useGeminiLive() {
     if (audioContextRef.current) audioContextRef.current.close();
     if (wsRef.current) wsRef.current.close();
     
+    setupCompleteRef.current = false;
     setIsConnected(false);
   }, []);
 
