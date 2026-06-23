@@ -197,10 +197,6 @@ export function useGeminiLive() {
             if (content.modelTurn?.parts) {
               const parts = content.modelTurn.parts;
               for (const part of parts) {
-                // For any fallback text response
-                if (part.text) {
-                  setSubtitles(prev => [...prev, part.text].slice(-20));
-                }
                 // Handle Audio Response (Gemini's translated voice)
                 if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
                   const base64Audio = part.inlineData.data;
