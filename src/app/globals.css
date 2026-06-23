@@ -172,7 +172,11 @@ body {
 .lang-dropdown {
   appearance: none;
   text-align: center;
-  flex: 0.5; /* Slightly smaller than regular buttons */
+  flex: 0.8; /* Slightly smaller than regular buttons */
+  min-width: 0; /* CRITICAL: Allows flex item to shrink below content size */
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 .lang-dropdown option {
   background: #222;

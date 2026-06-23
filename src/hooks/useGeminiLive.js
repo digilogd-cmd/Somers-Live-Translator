@@ -38,6 +38,7 @@ export function useGeminiLive() {
 
   const wsRef = useRef(null);
   const setupCompleteRef = useRef(false);
+  const turnCompleteRef = useRef(false);
 
   const startListening = useCallback(async (boostLevel, targetLanguage) => {
     try {
@@ -172,9 +173,9 @@ export function useGeminiLive() {
                 const newArr = [...prev];
                 const newText = content.outputTranscription.text;
                 
-                if (newArr.length === 0 || setupCompleteRef.current.turnJustCompleted) {
+                if (newArr.length === 0 || turnCompleteRef.current) {
                   newArr.push(newText);
-                  setupCompleteRef.current.turnJustCompleted = false;
+                  turnCompleteRef.current = false;
                 } else {
                   const lastStr = newArr[newArr.length - 1];
                   if (newText.startsWith(lastStr)) {
@@ -190,7 +191,7 @@ export function useGeminiLive() {
             }
 
             if (content.turnComplete) {
-              setupCompleteRef.current.turnJustCompleted = true;
+              turnCompleteRef.current = true;
             }
 
             if (content.modelTurn?.parts) {
