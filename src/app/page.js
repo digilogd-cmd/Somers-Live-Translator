@@ -49,20 +49,9 @@ export default function Home() {
   const { isConnected, subtitles: hookSubtitles, startListening, stopListening, updateBoostLevel } = useGeminiLive();
   const [language, setLanguage] = useState('AUTO');
   const [boostLevel, setBoostLevel] = useState(1);
-  const [subtitles, setSubtitles] = useState([
-    "SOMMERS SYSTEM INITIALIZED...",
-    "WAITING FOR AUDIO INPUT..."
-  ]);
   const [audioLevel, setAudioLevel] = useState(0);
   
   const messagesEndRef = useRef(null);
-
-  // Sync hook subtitles
-  useEffect(() => {
-    if (hookSubtitles.length > 0) {
-      setSubtitles(prev => [...prev, hookSubtitles[hookSubtitles.length - 1]]);
-    }
-  }, [hookSubtitles]);
 
   // Sync boost level
   useEffect(() => {
@@ -72,7 +61,7 @@ export default function Home() {
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [subtitles]);
+  }, [hookSubtitles]);
 
   const toggleListen = () => {
     if (!isConnected) {
@@ -98,11 +87,18 @@ export default function Home() {
     <div className="device-container">
       {/* Waterfall UI Screen */}
       <div className="screen-container">
-        {subtitles.map((text, i) => (
-          <div key={i} className="teletype-text">
-            {`> ${text}`}
-          </div>
-        ))}
+        {hookSubtitles.length === 0 ? (
+          <>
+            <div className="teletype-text">{`> SOMMERS SYSTEM INITIALIZED...`}</div>
+            <div className="teletype-text">{`> WAITING FOR AUDIO INPUT...`}</div>
+          </>
+        ) : (
+          hookSubtitles.map((text, i) => (
+            <div key={i} className="teletype-text">
+              {text ? `> ${text}` : '> '}
+            </div>
+          ))
+        )}
         <div ref={messagesEndRef} />
       </div>
 
