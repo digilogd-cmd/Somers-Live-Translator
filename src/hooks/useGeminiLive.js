@@ -41,7 +41,7 @@ export function useGeminiLive() {
   const turnCompleteRef = useRef(false);
   const wakeLockRef = useRef(null);
 
-  const startListening = useCallback(async (boostLevel, targetLanguage) => {
+  const startListening = useCallback(async (boostLevel, inputLanguage, targetLanguage) => {
     try {
       const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
       if (!apiKey) {
@@ -134,12 +134,26 @@ export function useGeminiLive() {
         setSubtitles(prev => [...prev, "LINK ESTABLISHED. CONFIGURING TARGET LANGUAGE: " + targetLanguage]);
         
         const langMap = {
-          'AUTO': 'ko',
+          'AUTO': null,
+          'KO': 'ko',
+          'ko': 'ko',
           'EN': 'en',
+          'en': 'en',
           'JA': 'ja',
-          'ZH': 'zh-Hans'
+          'ja': 'ja',
+          'ZH': 'zh-Hans',
+          'zh-Hans': 'zh-Hans'
         };
+        const sourceCode = langMap[inputLanguage] || inputLanguage;
         const targetCode = langMap[targetLanguage] || targetLanguage;
+
+        const translationConfig = {
+          targetLanguageCode: targetCode,
+          echoTargetLanguage: true
+        };
+        if (sourceCode && sourceCode !== 'AUTO') {
+          translationConfig.sourceLanguageCode = sourceCode;
+        }
 
         const setupMessage = {
           setup: {
@@ -148,10 +162,7 @@ export function useGeminiLive() {
             outputAudioTranscription: {},
             generationConfig: {
               responseModalities: ["AUDIO"],
-              translationConfig: {
-                targetLanguageCode: targetCode,
-                echoTargetLanguage: true
-              }
+              translationConfig: translationConfig
             }
           }
         };

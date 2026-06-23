@@ -47,7 +47,8 @@ const SUPPORTED_LANGUAGES = [
 
 export default function Home() {
   const { isConnected, subtitles: hookSubtitles, startListening, stopListening, updateBoostLevel } = useGeminiLive();
-  const [language, setLanguage] = useState('AUTO');
+  const [inputLanguage, setInputLanguage] = useState('AUTO');
+  const [outputLanguage, setOutputLanguage] = useState('ko');
   const [boostLevel, setBoostLevel] = useState(1);
   const [audioLevel, setAudioLevel] = useState(0);
   
@@ -65,7 +66,7 @@ export default function Home() {
 
   const toggleListen = () => {
     if (!isConnected) {
-      startListening(boostLevel, language);
+      startListening(boostLevel, inputLanguage, outputLanguage);
     } else {
       stopListening();
       setAudioLevel(0);
@@ -109,22 +110,58 @@ export default function Home() {
           <div className="vu-bar" style={{ width: `${audioLevel}%` }}></div>
         </div>
 
-        {/* Language Selection */}
+        {/* Input Language Selection */}
+        <div className="booster-container" style={{ marginBottom: '-5px' }}>
+          <span className="booster-label" style={{ fontSize: '1rem', color: '#a0a0a0' }}>INPUT (들리는 언어)</span>
+        </div>
         <div className="radio-group">
           {['AUTO', 'EN', 'JA', 'ZH'].map(lang => (
             <button 
               key={lang}
-              className={`radio-btn ${language === lang ? 'active' : ''}`}
-              onClick={() => setLanguage(lang)}
+              className={`radio-btn ${inputLanguage === lang ? 'active' : ''}`}
+              onClick={() => setInputLanguage(lang)}
             >
               {lang}
             </button>
           ))}
           <select 
-            className={`radio-btn lang-dropdown ${!['AUTO', 'EN', 'JA', 'ZH'].includes(language) ? 'active' : ''}`}
-            value={!['AUTO', 'EN', 'JA', 'ZH'].includes(language) ? language : ''}
+            className={`radio-btn lang-dropdown ${!['AUTO', 'EN', 'JA', 'ZH'].includes(inputLanguage) ? 'active' : ''}`}
+            value={!['AUTO', 'EN', 'JA', 'ZH'].includes(inputLanguage) ? inputLanguage : ''}
             onChange={(e) => {
-              if (e.target.value) setLanguage(e.target.value);
+              if (e.target.value) setInputLanguage(e.target.value);
+            }}
+          >
+            <option value="" disabled>MORE...</option>
+            {SUPPORTED_LANGUAGES.map(lang => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Output Language Selection */}
+        <div className="booster-container" style={{ marginBottom: '-5px', marginTop: '5px' }}>
+          <span className="booster-label" style={{ fontSize: '1rem', color: '#a0a0a0' }}>OUTPUT (번역될 언어)</span>
+        </div>
+        <div className="radio-group">
+          {['ko', 'en', 'ja', 'zh-Hans'].map(lang => {
+            const displayMap = { 'ko': 'KO', 'en': 'EN', 'ja': 'JA', 'zh-Hans': 'ZH' };
+            return (
+              <button 
+                key={lang}
+                className={`radio-btn ${outputLanguage === lang ? 'active' : ''}`}
+                onClick={() => setOutputLanguage(lang)}
+              >
+                {displayMap[lang]}
+              </button>
+            )
+          })}
+          <select 
+            className={`radio-btn lang-dropdown ${!['ko', 'en', 'ja', 'zh-Hans'].includes(outputLanguage) ? 'active' : ''}`}
+            value={!['ko', 'en', 'ja', 'zh-Hans'].includes(outputLanguage) ? outputLanguage : ''}
+            onChange={(e) => {
+              if (e.target.value) setOutputLanguage(e.target.value);
             }}
           >
             <option value="" disabled>MORE...</option>
