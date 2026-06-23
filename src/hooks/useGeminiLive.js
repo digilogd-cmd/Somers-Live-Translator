@@ -167,11 +167,8 @@ export function useGeminiLive() {
             const content = response.serverContent;
             
             // Handle Transcriptions for subtitles
-            if (content.inputTranscription) {
-              setSubtitles(prev => [...prev, `[인식됨]: ${content.inputTranscription.text}`].slice(-20));
-            }
-            if (content.outputTranscription) {
-              setSubtitles(prev => [...prev, `[번역됨]: ${content.outputTranscription.text}`].slice(-20));
+            if (content.outputTranscription && content.outputTranscription.text) {
+              setSubtitles(prev => [...prev, content.outputTranscription.text].slice(-20));
             }
 
             if (content.modelTurn?.parts) {

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=VT323&family=Noto+Sans+KR:wght@400;700&display=swap');
 
 :root {
   --color-olive: #4b5320;
@@ -11,7 +11,7 @@
   --color-text-retro: #e8e8e8;
   --color-red-light: #ff4444;
   
-  --font-teletype: 'Special Elite', cursive;
+  --font-teletype: 'Special Elite', 'Noto Sans KR', sans-serif;
   --font-digital: 'VT323', monospace;
 }
 
