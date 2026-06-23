@@ -127,10 +127,10 @@ export function useGeminiLive() {
         const setupMessage = {
           setup: {
             model: "models/gemini-3.5-live-translate-preview",
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
             generationConfig: {
               responseModalities: ["AUDIO"],
-              inputAudioTranscription: {},
-              outputAudioTranscription: {},
               translationConfig: {
                 targetLanguageCode: targetCode,
                 echoTargetLanguage: true
