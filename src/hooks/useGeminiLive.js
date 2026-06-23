@@ -39,6 +39,7 @@ export function useGeminiLive() {
   const wsRef = useRef(null);
   const setupCompleteRef = useRef(false);
   const turnCompleteRef = useRef(false);
+  const wakeLockRef = useRef(null);
 
   const startListening = useCallback(async (boostLevel, targetLanguage) => {
     try {
@@ -49,6 +50,15 @@ export function useGeminiLive() {
       }
 
       setSubtitles(prev => [...prev, "SYSTEM ACTIVATING... ESTABLISHING SECURE LINK."]);
+
+      // Request wake lock to keep screen awake
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockRef.current = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.warn('Wake Lock error:', err);
+      }
 
       // Resolve path for GitHub pages vs Local dev
       const basePath = process.env.NODE_ENV === 'production' ? '/Somers-Live-Translator' : '';
@@ -62,7 +72,13 @@ export function useGeminiLive() {
       playbackWorklet.connect(playbackCtx.destination);
 
       // 2. Capture AudioContext Setup (16kHz for input)
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: true, 
+          noiseSuppression: false,
+          autoGainControl: false
+        } 
+      });
       mediaStreamRef.current = stream;
 
       const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
@@ -255,6 +271,11 @@ export function useGeminiLive() {
     if (playbackContextRef.current) playbackContextRef.current.close();
     if (wsRef.current) wsRef.current.close();
     
+    if (wakeLockRef.current) {
+      wakeLockRef.current.release().catch(console.warn);
+      wakeLockRef.current = null;
+    }
+
     setupCompleteRef.current = false;
     setIsConnected(false);
   }, []);

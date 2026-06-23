@@ -141,9 +141,9 @@ export default function Home() {
           <span className="booster-label">GAIN</span>
           <input 
             type="range" 
-            min="1" max="3" step="1" 
+            min="0.1" max="3.0" step="0.1" 
             value={boostLevel}
-            onChange={(e) => setBoostLevel(parseInt(e.target.value))}
+            onChange={(e) => setBoostLevel(parseFloat(e.target.value))}
           />
           <span className="booster-label">{boostLevel}X</span>
         </div>
