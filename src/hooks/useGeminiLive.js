@@ -58,7 +58,7 @@ export function useGeminiLive() {
 
         const setupMessage = {
           setup: {
-            model: "models/gemini-live-2.5-flash-native-audio",
+            model: "models/gemini-3.5-live-translate-preview",
             systemInstruction: {
               parts: [{ text: instruction }]
             },
