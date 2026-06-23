@@ -122,7 +122,7 @@ export function useGeminiLive() {
           'JA': 'ja',
           'ZH': 'zh-Hans'
         };
-        const targetCode = langMap[targetLanguage] || 'ko';
+        const targetCode = langMap[targetLanguage] || targetLanguage;
 
         const setupMessage = {
           setup: {
@@ -168,7 +168,29 @@ export function useGeminiLive() {
             
             // Handle Transcriptions for subtitles
             if (content.outputTranscription && content.outputTranscription.text) {
-              setSubtitles(prev => [...prev, content.outputTranscription.text].slice(-20));
+              setSubtitles(prev => {
+                const newArr = [...prev];
+                const newText = content.outputTranscription.text;
+                
+                if (newArr.length === 0 || setupCompleteRef.current.turnJustCompleted) {
+                  newArr.push(newText);
+                  setupCompleteRef.current.turnJustCompleted = false;
+                } else {
+                  const lastStr = newArr[newArr.length - 1];
+                  if (newText.startsWith(lastStr)) {
+                    // Cumulative text update
+                    newArr[newArr.length - 1] = newText;
+                  } else {
+                    // Chunked text append
+                    newArr[newArr.length - 1] = lastStr + newText;
+                  }
+                }
+                return newArr.slice(-20);
+              });
+            }
+
+            if (content.turnComplete) {
+              setupCompleteRef.current.turnJustCompleted = true;
             }
 
             if (content.modelTurn?.parts) {
