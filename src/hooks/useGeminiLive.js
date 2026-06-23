@@ -51,25 +51,24 @@ export function useGeminiLive() {
       ws.onopen = () => {
         setSubtitles(prev => [...prev, "LINK ESTABLISHED. CONFIGURING TARGET LANGUAGE: " + targetLanguage]);
         
-        // Setup System Instruction
-        const instruction = targetLanguage === 'AUTO' 
-          ? "You are Sommers, a real-time translator. Detect the spoken language and translate it to Korean instantly. Provide only the translation."
-          : `You are Sommers. Translate all incoming ${targetLanguage} audio into Korean instantly. Provide only the translation.`;
+        const langMap = {
+          'AUTO': 'ko',
+          'EN': 'en',
+          'JA': 'ja',
+          'ZH': 'zh-Hans'
+        };
+        const targetCode = langMap[targetLanguage] || 'ko';
 
         const setupMessage = {
           setup: {
             model: "models/gemini-3.5-live-translate-preview",
-            systemInstruction: {
-              parts: [{ text: instruction }]
-            },
             generationConfig: {
               responseModalities: ["AUDIO"],
-              speechConfig: {
-                voiceConfig: {
-                  prebuiltVoiceConfig: {
-                    voiceName: "Aoede" // Choose a specific voice
-                  }
-                }
+              inputAudioTranscription: {},
+              outputAudioTranscription: {},
+              translationConfig: {
+                targetLanguageCode: targetCode,
+                echoTargetLanguage: true
               }
             }
           }
@@ -93,18 +92,26 @@ export function useGeminiLive() {
             return;
           }
 
-          if (response.serverContent?.modelTurn?.parts) {
-            const parts = response.serverContent.modelTurn.parts;
-            for (const part of parts) {
-              // Handle Text
-              if (part.text) {
-                setSubtitles(prev => {
-                  const newSubs = [...prev, part.text];
-                  return newSubs.slice(-20); // Keep last 20 for waterfall UI
-                });
-              }
-              // Handle Audio Response (Gemini's translated voice)
-              if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
+          if (response.serverContent) {
+            const content = response.serverContent;
+            
+            // Handle Transcriptions for subtitles
+            if (content.inputTranscription) {
+              setSubtitles(prev => [...prev, `[인식됨]: ${content.inputTranscription.text}`].slice(-20));
+            }
+            if (content.outputTranscription) {
+              setSubtitles(prev => [...prev, `[번역됨]: ${content.outputTranscription.text}`].slice(-20));
+            }
+
+            if (content.modelTurn?.parts) {
+              const parts = content.modelTurn.parts;
+              for (const part of parts) {
+                // For any fallback text response
+                if (part.text) {
+                  setSubtitles(prev => [...prev, part.text].slice(-20));
+                }
+                // Handle Audio Response (Gemini's translated voice)
+                if (part.inlineData && part.inlineData.mimeType.startsWith('audio/pcm')) {
                 const base64Audio = part.inlineData.data;
                 const binaryString = atob(base64Audio);
                 const len = binaryString.length;
